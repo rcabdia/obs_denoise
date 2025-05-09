@@ -1,7 +1,7 @@
 from datetime import timedelta
 import math
 import pandas as pd
-from obspy import  geodetics, read_inventory
+from obspy import geodetics, read_inventory
 from obspy.geodetics import gps2dist_azimuth
 from obspy.taup import TauPyModel
 from scipy import signal
