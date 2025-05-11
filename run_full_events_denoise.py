@@ -1,14 +1,22 @@
 import copy
 import os
 from datetime import timedelta
-
 import pandas as pd
 from obspy import read_inventory, UTCDateTime, geodetics
 from obspy.geodetics import gps2dist_azimuth
 from obspy.taup import TauPyModel
 from surfquakecore.project.surf_project import SurfProject
 from processing_tools import ProcessingTools
+import logging
+# from tqdm import tqdm
 
+logging.basicConfig(
+    filename='run_denoise.log',
+    filemode='a',
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 class RunDenoise:
 
@@ -47,6 +55,7 @@ class RunDenoise:
         event_info["ev_lat"] = row['Latitude']
         event_info["ev_lon"] = row['Longitude']
         event_info["ev_depth"] = row['Depth/km']
+        event_info["magnitude"] = row['Magnitude']
 
         # Extract station coordinates from inventory
         sta_meta = self.inventory.select(station=sta)
@@ -95,12 +104,13 @@ class RunDenoise:
             else:
                 os.makedirs(out_plots)
 
+        # for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Station Loop"):
 
         for index, row in df.iterrows():
 
              # This loop over specific station
              sp_process = copy.deepcopy(sp)
-             print(f"Station Processing: {row['name']}")
+             logger.info(f"Station Processing: {row['name']}")
              sta = row['name']
              sp_process.filter_project_keys(station=sta)
 
@@ -110,42 +120,33 @@ class RunDenoise:
              df_catalog['Time'] = pd.to_datetime(df_catalog['Time'], errors='coerce')
 
              ev_num = 1
+
              for _, row in df_catalog.iterrows():
+                try:
+                    event_info = self._get_event_info(row, sta)
+                    sp_process_time = copy.deepcopy(sp_process)
+                    origin_time = row['Time']
+                    st_time = UTCDateTime(origin_time)
+                    et_time = st_time + dt
+                    sp_process_time.filter_project_time(starttime=st_time, endtime=et_time)
+                    list_files = sp_process_time.data_files
 
-                 # This loop over events
-                 event_info = self._get_event_info(row, sta)
+                    if list_files:
+                        logger.info(f"Processing event at {st_time} with files: {list_files}")
+                        pt = ProcessingTools(cut_events=True, plot=plot, path_save=out_plots)
+                        pt.split_stream(list_files)
+                        pt.split_stream_by_events(df_catalog, self.model, self.inventory, cut_time)
+                        pt.generate_noise_transfer()
+                        st_both = pt.remove_tilt_compliance_event()
 
-                 sp_process_time = copy.deepcopy(sp_process)
-                 origin_time = row['Time']
-                 st_time = UTCDateTime(origin_time)
+                        if trim:
+                            st_both.trim(starttime=event_info["first_arrival"] - 20 * 60,
+                                         endtime=event_info["first_arrival"] + 1.5 * 3600)
+                            self._save_results(event_info, st_both, str(ev_num))
+                except Exception as e:
+                    logger.error(f"Error processing event {ev_num} at station {sta}: {e}", exc_info=True)
 
-                 et_time = st_time + dt
-                 sp_process_time.filter_project_time(starttime=st_time, endtime=et_time)
-                 list_files = sp_process_time.data_files
-                 if len(list_files) > 0:
-                     print("List_of_files", st_time, list_files)
-                     #try:
-                     pt = ProcessingTools(cut_events=True, plot=plot, path_save=out_plots)
-                     pt.split_stream(list_files)
-                     pt.split_stream_by_events(df_catalog, self.model, self.inventory, cut_time)
-                     pt.generate_noise_transfer()
-                     st_both = pt.remove_tilt_compliance_event()
-                     if trim:
-                         #st_both.trim(starttime=event_info["first_arrival"]-10*60, endtime=event_info["times"][1]+10*60)
-                         st_both.trim(starttime=event_info["first_arrival"] - 15 * 60,
-                                      endtime=event_info["first_arrival"] + 1.5 * 3600)
-
-                         self._save_results(event_info, st_both, str(ev_num))
-
-                     #except:
-
-                     #    print("Coudn't denoise data for: ", sta, st_time, ev_num)
-
-
-                 ev_num += 1
-
-
-
+                ev_num += 1
 
 
 if __name__ == '__main__':
