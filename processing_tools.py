@@ -216,7 +216,8 @@ class ProcessingTools:
                 arrivals = model.get_travel_times(source_depth_in_km=ev_depth,
                                                   distance_in_degree=dist_deg,
                                                   phase_list=["P", "p", "Pdiff"])
-
+                if len(arrivals) == 0:
+                    arrivals = model.get_travel_times(source_depth_in_km=ev_depth, distance_in_degree=dist_deg)
                 #arrivals = model.get_travel_times(source_depth_in_km=ev_depth, distance_in_degree=dist_deg)
 
                 if not arrivals:

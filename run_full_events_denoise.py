@@ -9,6 +9,8 @@ from surfquakecore.project.surf_project import SurfProject
 from processing_tools import ProcessingTools
 import logging
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings("ignore")
 
 logging.basicConfig(
     filename='run_denoise.log',
@@ -71,7 +73,11 @@ class RunDenoise:
         event_info["first_arrival"] = UTCDateTime(event_info["origin_time"] + timedelta(seconds=arrivals[0].time))
         t_2 = event_info["origin_time"] + (dist_m / 1000) / 2.5
         t_1 = event_info["origin_time"] + (dist_m / 1000) / 5.0
+
+        t_4 = event_info["origin_time"] + (dist_m / 1000) / 3.0
+        t_3 = event_info["origin_time"] + (dist_m / 1000) / 4.0
         event_info["times"] = [t_2, t_1]
+        event_info["times_narrow"] = [t_4, t_3]
         event_info["distance"] = [dist_deg, dist_m / 1000]
         event_info["azimuth"] = azimuth
         event_info["backazimuth"] = back_azimuth
@@ -121,7 +127,8 @@ class RunDenoise:
 
              ev_num = 1
 
-             for _, row in df_catalog.iterrows():
+             for index, row in tqdm(df_catalog.iterrows(), total=df.shape[0], desc="Event"):
+             #for _, row in df_catalog.iterrows():
                 try:
                     event_info = self._get_event_info(row, sta)
                     sp_process_time = copy.deepcopy(sp_process)
@@ -151,9 +158,9 @@ class RunDenoise:
 
 if __name__ == '__main__':
     path_to_project = "/Volumes/LaCie/UPFLOW_5HZ/data/all_upflow.pkl"
-    path_catalog = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/event_original.txt"
+    path_catalog = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/events.csv"
     inventory_path = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/meta.xml"
     stations_file = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/stations_file.txt"
-    output = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/output_test"
+    output = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/output_full"
     rd = RunDenoise(path_to_project, path_catalog, inventory_path, stations_file, output)
     rd.loop_over_events(plot=True)
