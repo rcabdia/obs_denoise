@@ -2,11 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 
 class WaveformQualityEvaluator:
-    # TODO WE NEED TO ADD MAGNITUDE
-    # TODO WE NEED TO RENAME plot output
 
     def __init__(self, input_dir, output_pdf, output_txt, noise_window=(300, 600)):
         self.input_dir = input_dir
@@ -15,23 +12,22 @@ class WaveformQualityEvaluator:
         self.noise_window = noise_window
         self.results = []
 
-    def process_all(self):
+    def process_all(self, plot=False):
         files = [f for f in os.listdir(self.input_dir) if f.endswith('.pkl')]
-        with PdfPages(self.output_pdf) as pdf:
-            for file in files:
-                file_path = os.path.join(self.input_dir, file)
-                try:
-                    self.process_file(file_path, pdf)
-                except Exception as e:
-                    print(f"Failed to process {file}: {e}")
+        for file in files:
+            file_path = os.path.join(self.input_dir, file)
+            try:
+                self.process_file(file_path, plot=plot)
+            except Exception as e:
+                print(f"Failed to process {file}: {e}")
         self.write_summary()
 
-    def process_file(self, file_path, pdf):
+    def process_file(self, file_path, plot):
         df = pd.read_pickle(file_path)
         st = df["streams"]
         st.detrend(type="simple")
         st.taper(max_percentage=0.05)
-        st.filter(type="bandpass", freqmin=1/80, freqmax=1/20)
+        st.filter(type="bandpass", freqmin=1/80, freqmax=1/40)
 
         st_time = df["event_info"]["times"][1]
         et_time = df["event_info"]["times"][0]
@@ -71,24 +67,32 @@ class WaveformQualityEvaluator:
             "depth_km": df["event_info"]["ev_depth"],
             "RMS_dirty": RMS_dirty,
             "RMS_clean": RMS_clean,
+            "magnitude": df["event_info"]["magnitude"],
+            "distance": df["event_info"]["distance"][1],
             "RMS_gain": RMS_clean - RMS_dirty
         })
+        if plot:
+            self.plot_comparison(tr_dirty, tr_clean, origin_time, st_time, et_time, file_path, df, RMS_clean - RMS_dirty)
 
-        self.plot_comparison(tr_dirty, tr_clean, origin_time, st_time, et_time, os.path.basename(file_path), pdf)
+    def plot_comparison(self, tr_dirty, tr_clean, origin_time, st_time, et_time, file_path, df, RMS_gain):
 
-    def plot_comparison(self, tr_dirty, tr_clean, origin_time, st_time, et_time,  title, pdf):
-        fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+        root_name = os.path.basename(file_path)
+        name = root_name[0:-4] + "." + "pdf"
+        output = os.path.join(self.output_pdf, name)
+        fig, axs = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+        fig.suptitle(f"Waveform Comparison: {root_name[0:-4]}")
         times = tr_dirty.times("relative")
-        t1 = tr_dirty.stats.starttime-origin_time + self.noise_window[0]
-        t2 = tr_dirty.stats.starttime - origin_time + self.noise_window[1]
+        t1 = self.noise_window[0]
+        t2 = self.noise_window[1]
         st1 = st_time - tr_dirty.stats.starttime
         et2 = et_time - tr_dirty.stats.starttime
-
+        magnitude = df["event_info"]["magnitude"]
+        distance = df["event_info"]["distance"][1]
         for i, (tr, label) in enumerate(zip([tr_dirty, tr_clean], ["Dirty", "Clean"])):
 
             if label == "Dirty":
 
-                color="black"
+                color = "black"
             else:
                 color = "steelblue"
 
@@ -99,9 +103,14 @@ class WaveformQualityEvaluator:
             axs[i].set_ylabel("Amplitude")
 
         axs[-1].set_xlabel("Time (s)")
-        fig.suptitle(f"Waveform Comparison: {title}")
+        # Create the text content
+        info_text = f"Magnitude: {magnitude:.1f}\nDistance: {distance:.1f} km\nSNR: {RMS_gain:.1f}"
+
+        # Add a text box to the figure (top-right corner)
+        fig.text(0.12, 0.82, info_text, fontsize=10, bbox=dict(facecolor='white', alpha=0.5, edgecolor='gray'))
         plt.tight_layout()
-        pdf.savefig(fig)
+        #plt.show()
+        plt.savefig(output)
         plt.close(fig)
 
     def write_summary(self):
@@ -112,9 +121,9 @@ class WaveformQualityEvaluator:
 
 if __name__ == "__main__":
     evaluator = WaveformQualityEvaluator(
-        input_dir="/Users/roberto/Documents/data_test/output_test/",
-        output_pdf="/Users/roberto/Documents/data_test/output_test/SNR/waveform_comparisons.pdf",
-        output_txt="/Users/roberto/Documents/data_test/output_test/SNR/waveform_rms_summary.txt",
+        input_dir="/Volumes/LaCie/UPFLOW_denoise/new_stuff/output",
+        output_pdf="/Volumes/LaCie/UPFLOW_denoise/new_stuff/SNR/waveforms/",
+        output_txt="/Volumes/LaCie/UPFLOW_denoise/new_stuff/SNR/waveform_rms_summary.txt",
         noise_window=(350, 850)
     )
-    evaluator.process_all()
+    evaluator.process_all(plot=True)

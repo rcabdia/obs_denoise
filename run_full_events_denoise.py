@@ -8,7 +8,7 @@ from obspy.taup import TauPyModel
 from surfquakecore.project.surf_project import SurfProject
 from processing_tools import ProcessingTools
 import logging
-# from tqdm import tqdm
+from tqdm import tqdm
 
 logging.basicConfig(
     filename='run_denoise.log',
@@ -104,9 +104,9 @@ class RunDenoise:
             else:
                 os.makedirs(out_plots)
 
-        # for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Station Loop"):
+        for index, row in tqdm(df.iterrows(), total=df.shape[0], desc="Station Loop"):
 
-        for index, row in df.iterrows():
+        #for index, row in df.iterrows():
 
              # This loop over specific station
              sp_process = copy.deepcopy(sp)
@@ -151,9 +151,9 @@ class RunDenoise:
 
 if __name__ == '__main__':
     path_to_project = "/Volumes/LaCie/UPFLOW_5HZ/data/all_upflow.pkl"
-    path_catalog = "/Users/roberto/Documents/data_test/events.txt"
-    inventory_path = "/Users/roberto/Documents/data_test/meta.xml"
-    stations_file = "/Users/roberto/Documents/data_test/stations_channels.txt"
-    output = "/Users/roberto/Documents/data_test/output_test"
+    path_catalog = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/event_original.txt"
+    inventory_path = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/meta.xml"
+    stations_file = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/aux_files/stations_file.txt"
+    output = "/Volumes/LaCie/UPFLOW_denoise/new_stuff/output_test"
     rd = RunDenoise(path_to_project, path_catalog, inventory_path, stations_file, output)
     rd.loop_over_events(plot=True)
